@@ -1,3 +1,4 @@
+.hc12
 ;**** Timer **** 
 TSCR1 EQU $46
 TSCR2 EQU $4D
@@ -18,7 +19,8 @@ PORTM EQU $250
 DDRM EQU $252
 
 	org $FFEC
-		FDB addMillis
+	DW ADDMILLIS
+	
 	
 	org $1000
 ahourten	 DS 1 ; the tens place for the alarm hour time
@@ -31,17 +33,18 @@ cminten		 DS 1
 cminone		 DS 1
 csecond		 DS 1
 millis		 DS 2
+	
 
  
  	
  	org $400
- 	LDS #$2000
+ 	LDS #$4000
 	;set up timer
  	LDAA #%10010000
  	STAA TSCR1
- 	LDAA #%0011
+ 	LDAA #%00000011
  	STAA TSCR2
- 	LDAA #%0010
+ 	LDAA #%00000010
  	STAA TIOS
  	
  	;reset current time
@@ -53,22 +56,27 @@ millis		 DS 2
 	STAA csecond
 	LDD #!0
 	STD millis
- 	
 	;set up display
-	LDD #%110000;function set
-	LDD #%1100;on/off ctrl
-	LDD #%110; entry mode set
-	CLI
+	;LDD #%00110000;function set
+	;LDD #%00001100;on/off ctrl
+	;LDD #%00000110; entry mode set
+	
+	LDAA #%10
+	STAA TIE
+	
  	LDD TSCNT
  	ADDD #!1000
  	STD TC1
-	LDAA #%10
-	STAA TIE
-TOP	LDD millis
+	CLI
+
+TOP	
+	LDD millis
 	CPD #!1000
 	BNE TOP	
 	JSR IncSecond
 	BRA TOP
+	
+	
 
 IncSecond:
 		  LDAA csecond
@@ -126,17 +134,16 @@ resetDay:	   LDAA #0
 			   
 			   
 ADDMILLIS:	  
-			   CLI
 			   LDD TSCNT
 			   ADDD #!1000
 			   STD TC1
 			   LDD millis
 			   ADDD #!1
 			   STD millis
-			   SEI
 			   RTI
 
-InitLCD:ldaa #$FF ; Set port A to output for now
+InitLCD:
+		ldaa #$FF ; Set port A to output for now
 		staa DDRA
         ldaa #$1C ; Set port M bits 4,3,2
 		staa DDRM
@@ -190,7 +197,8 @@ InitLCD:ldaa #$FF ; Set port A to output for now
 
 		rts
 
-SendWithDelay:  TSX
+SendWithDelay:  
+		TSX
 		LDAA 3,x
 		STAA PORTA
 
@@ -203,10 +211,14 @@ SendWithDelay:  TSX
 		psha
 		clra
 		psha
-		jsr Delay
+		jsr Delay1MS
 		pula
 		pula
 		rts
 
 Delay1MS:
-RTS
+		 LDD TSCNT
+		 ADDD #!1000
+		 STD TC1
+		 BRCLR TFLG1,%0010,*
+		 RTS
