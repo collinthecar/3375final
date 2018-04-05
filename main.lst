@@ -1,0 +1,333 @@
+
+main.asm               Assembled with CASM12Z  2018-04-02  2:25:43 PM  PAGE 1
+
+
+
+ 000000                   1  .hc12
+                            2  ;**** Timer **** 
+ 000000                   3  TSCR1 EQU $46
+ 000000                   4  TSCR2 EQU $4D
+ 000000                   5  TIOS  EQU $40
+ 000000                   6  TCTL1 EQU $48
+ 000000                   7  TCTL2 EQU $49
+ 000000                   8  TFLG1 EQU $4E
+ 000000                   9  TIE   EQU $4C
+ 000000                  10  TSCNT EQU $44
+ 000000                  11  TC4          EQU $58
+ 000000                  12  TC1          EQU $52
+                           13  ;***************
+                           14  
+                           15  ;***LCD**
+ 000000                  16  PORTA EQU $0000
+ 000000                  17  DDRA EQU $0002
+ 000000                  18  PORTM EQU $250
+ 000000                  19  DDRM EQU $252
+                           20  
+ 00FFEC                  21     org $FFEC
+ 00FFEC      04A6        22     DW ADDMILLIS
+                           23   
+                           24   
+ 001000                  25     org $1000
+ 001000                  26  ahourten    DS 1 ; the tens place for the alarm 
+                               hour time
+ 001001                  27  ahourone    DS 1 ; the ones place for the alarm 
+                               hour time
+ 001002                  28  aminone             DS 1 
+ 001003                  29  aminten             DS 1 
+ 001004                  30  chourten    DS 1; hour tens place for current time
+ 001005                  31  chourone    DS 1
+ 001006                  32  cminten             DS 1
+ 001007                  33  cminone             DS 1
+ 001008                  34  csecond             DS 1
+ 001009                  35  millis              DS 2
+                           36   
+                           37  
+                           38   
+                           39           
+ 000400                  40     org $400
+ 000400 [02] CF4000      41     LDS #$4000
+                           42   ;set up timer
+ 000403 [01] 8690        43     LDAA #%10010000
+ 000405 [02] 5A46        44     STAA TSCR1
+ 000407 [01] 8603        45     LDAA #%00000011
+ 000409 [02] 5A4D        46     STAA TSCR2
+ 00040B [01] 8602        47     LDAA #%00000010
+ 00040D [02] 5A40        48     STAA TIOS
+                           49           
+                           50           ;reset current time
+ 00040F [01] 8600        51     LDAA #0
+ 000411 [03] 7A1007      52     STAA cminone
+ 000414 [03] 7A1006      53     STAA cminten
+ 000417 [03] 7A1005      54     STAA chourone
+ 00041A [03] 7A1004      55     STAA chourten
+ 00041D [03] 7A1008      56     STAA csecond
+
+
+main.asm               Assembled with CASM12Z  2018-04-02  2:25:43 PM  PAGE 2
+
+
+
+ 000420 [02] CC0000      57     LDD #!0
+ 000423 [03] 7C1009      58     STD millis
+                           59   ;set up display
+ 000426 [04] 1604B7      60     JSR InitLCD
+                           61   ;LDD #%00110000;function set
+                           62   ;LDD #%00001100;on/off ctrl
+                           63   ;LDD #%00000110; entry mode set
+                           64   
+ 000429 [01] 8602        65     LDAA #%10
+ 00042B [02] 5A4C        66     STAA TIE
+                           67   
+ 00042D [03] DC44        68     LDD TSCNT
+ 00042F [02] C303E8      69     ADDD #!1000
+ 000432 [02] 5C52        70     STD TC1
+ 000434 [01] 10EF        71     CLI
+                           72  
+                           73  TOP      
+ 000436 [03] FC1009      74     LDD millis
+ 000439 [02] 8C03E8      75     CPD #!1000
+ 00043C [03] 26F8        76     BNE TOP 
+ 00043E [04] 160446      77     JSR IncSecond
+ 000441 [04] 16052D      78     JSR UPDATECLOCK
+ 000444 [03] 20F0        79     BRA TOP
+                           80   
+                           81   
+                           82  
+                           83  IncSecond:
+ 000446 [03] B61008      84               LDAA csecond
+ 000449 [01] 42          85               INCA
+ 00044A [03] 7A1008      86               STAA csecond
+ 00044D [01] 813C        87               CMPA #!60
+ 00044F [03] 2603        88               BNE ENDSECOND
+ 000451 [04] 160455      89               JSR IncMinute
+ 000454 [05] 3D          90  ENDSECOND RTS
+                           91  
+                           92  IncMinute:
+ 000455 [01] 8600        93               LDAA #!0
+ 000457 [03] 7A1008      94               STAA csecond;reset seconds
+ 00045A [03] B61007      95               LDAA cminone
+ 00045D [01] 42          96               INCA
+ 00045E [03] 7A1007      97               STAA cminone;increase the minute
+ 000461 [01] 810A        98               CMPA #!10
+ 000463 [03] 2701        99               BEQ addtotensmin;if we are at ten we 
+                               need to increase the tens value
+ 000465 [05] 3D         100               RTS
+                          101  
+                          102  addtotensmin:
+ 000466 [01] 8600       103      LDAA #0
+ 000468 [03] 7A1007     104      STAA cminone;make the ones place 0
+ 00046B [03] B61006     105      LDAA cminten
+ 00046E [01] 42         106      INCA
+ 00046F [03] 7A1006     107      STAA cminten
+ 000472 [01] 8106       108      CMPA #!6
+ 000474 [03] 2701       109      BEQ IncHour
+ 000476 [05] 3D         110      RTS
+                          111  
+                          112  IncHour:
+ 000477 [01] 8600       113     LDAA #0
+
+
+main.asm               Assembled with CASM12Z  2018-04-02  2:25:43 PM  PAGE 3
+
+
+
+ 000479 [03] 7A1006     114     STAA cminten;only need to reset the tens 
+                               becaues tens increment routine resets the ones
+ 00047C [03] B61005     115     LDAA chourone
+ 00047F [01] 42         116     INCA
+ 000480 [03] 7A1005     117     STAA chourone
+ 000483 [01] 810A       118     CMPA #!10
+ 000485 [03] F61004     119     LDAB chourten
+ 000488 [02] 8C0402     120     CPD #$402; if it is at 24 we need to reset
+ 00048B [03] 2710       121     BEQ resetDay
+ 00048D [03] 2701       122     BEQ addtohourtens
+ 00048F [05] 3D         123     RTS
+                          124  
+ 000490 [01] 8600       125  addtohourtens: LDAA #!0
+ 000492 [03] 7A1005     126                        STAA chourone
+ 000495 [03] B61004     127                        LDAA chourten
+ 000498 [01] 42         128                        INCA
+ 000499 [03] 7A1004     129                        STAA chourten
+ 00049C [05] 3D         130                        RTS
+                          131  
+ 00049D [01] 8600       132  resetDay:     LDAA #0
+ 00049F [03] 7A1004     133                        STAA chourten
+ 0004A2 [03] 7A1005     134                        STAA chourone
+ 0004A5 [05] 3D         135                        RTS
+                          136                      
+                          137                      
+                          138  ADDMILLIS:         
+ 0004A6 [03] DC44       139                        LDD TSCNT
+ 0004A8 [02] C303E8     140                        ADDD #!1000
+ 0004AB [02] 5C52       141                        STD TC1
+ 0004AD [03] FC1009     142                        LDD millis
+ 0004B0 [02] C30001     143                        ADDD #!1
+ 0004B3 [03] 7C1009     144                        STD millis
+ 0004B6 [08] 0B         145                        RTI
+                          146  
+                          147  InitLCD:
+ 0004B7 [01] 86FF       148             ldaa #$FF ; Set port A to output for 
+                               now
+ 0004B9 [02] 5A02       149             staa DDRA
+ 0004BB [01] 861C       150          ldaa #$1C ; Set port M bits 4,3,2
+ 0004BD [03] 7A0252     151             staa DDRM
+                          152  
+                          153  
+ 0004C0 [01] 8630       154             LDAA #$30       ; We need to send this 
+                               command a bunch of times
+ 0004C2 [02] 36         155             psha
+ 0004C3 [01] 8605       156             LDAA #5
+ 0004C5 [02] 36         157             psha
+ 0004C6 [04] 160503     158             jsr SendWithDelay
+ 0004C9 [03] 32         159             pula
+                          160  
+ 0004CA [01] 8601       161             ldaa #1
+ 0004CC [02] 36         162             psha
+ 0004CD [04] 160503     163             jsr SendWithDelay
+ 0004D0 [04] 160503     164             jsr SendWithDelay
+ 0004D3 [04] 160503     165             jsr SendWithDelay
+ 0004D6 [03] 32         166             pula
+ 0004D7 [03] 32         167             pula
+                          168  
+
+
+main.asm               Assembled with CASM12Z  2018-04-02  2:25:43 PM  PAGE 4
+
+
+
+ 0004D8 [01] 8608       169             ldaa #$08
+ 0004DA [02] 36         170             psha
+ 0004DB [01] 8601       171             ldaa #1
+ 0004DD [02] 36         172             psha
+ 0004DE [04] 160503     173             jsr SendWithDelay
+ 0004E1 [03] 32         174             pula
+ 0004E2 [03] 32         175             pula
+                          176  
+ 0004E3 [01] 8601       177             ldaa #1
+ 0004E5 [02] 36         178             psha
+ 0004E6 [02] 36         179             psha
+ 0004E7 [04] 160503     180             jsr SendWithDelay
+ 0004EA [03] 32         181             pula
+ 0004EB [03] 32         182             pula
+                          183  
+ 0004EC [01] 8606       184             ldaa #6
+ 0004EE [02] 36         185             psha
+ 0004EF [01] 8601       186             ldaa #1
+ 0004F1 [02] 36         187             psha
+ 0004F2 [04] 160503     188             jsr SendWithDelay
+ 0004F5 [03] 32         189             pula
+ 0004F6 [03] 32         190             pula
+                          191  
+ 0004F7 [01] 860E       192             ldaa #$0E
+ 0004F9 [02] 36         193             psha
+ 0004FA [01] 8601       194             ldaa #1
+ 0004FC [02] 36         195             psha
+ 0004FD [04] 160503     196             jsr SendWithDelay
+ 000500 [03] 32         197             pula
+ 000501 [03] 32         198             pula
+                          199  
+ 000502 [05] 3D         200             rts
+                          201  
+                          202  SendWithDelay:  
+ 000503 [01] B775       203             TSX
+ 000505 [03] A603       204             LDAA 3,x
+ 000507 [02] 5A00       205             STAA PORTA
+                          206  
+ 000509 [04] 1C025010   207             bset PORTM,$10   ; Turn on bit 4
+ 00050D [04] 160521     208             jsr Delay1MS
+ 000510 [04] 1D025010   209             bclr PORTM,$10   ; Turn off bit 4
+                          210  
+ 000514 [01] B775       211             tsx
+ 000516 [03] A602       212             ldaa 2,x
+ 000518 [02] 36         213             psha
+ 000519 [01] 87         214             clra
+ 00051A [02] 36         215             psha
+ 00051B [04] 160521     216             jsr Delay1MS
+ 00051E [03] 32         217             pula
+ 00051F [03] 32         218             pula
+ 000520 [05] 3D         219             rts
+                          220  
+                          221  Delay1MS:
+ 000521 [03] DC44       222              LDD TSCNT
+ 000523 [02] C303E8     223              ADDD #!1000
+ 000526 [02] 5C52       224              STD TC1
+ 000528 [04] 4F4E02FC   225              BRCLR TFLG1,%0010,*
+ 00052C [05] 3D         226              RTS
+
+
+main.asm               Assembled with CASM12Z  2018-04-02  2:25:43 PM  PAGE 5
+
+
+
+                          227  
+                          228  UPDATECLOCK:
+ 00052D [01] 8600       229     LDAA #0
+ 00052F [03] 7A0250     230     STAA PORTM
+ 000532 [01] 8602       231     LDAA #$2
+ 000534 [02] 5A00       232     STAA PORTA;return cursor home
+ 000536 [01] 8601       233     LDAA #1
+ 000538 [02] 5A00       234     STAA PORTA;clear screen
+ 00053A [01] 8618       235     LDAA #%00011000;enable writing
+ 00053C [03] 7A0250     236     STAA PORTM;
+ 00053F [01] 863F       237     LDAA #%00111111
+ 000541 [03] B41004     238     ANDA chourten
+ 000544 [02] 5A00       239     STAA PORTA
+ 000546 [01] 863F       240     LDAA #%00111111
+ 000548 [03] B41005     241     ANDA chourone
+ 00054B [02] 5A00       242     STAA PORTA
+ 00054D [01] 863A       243     LDAA #%00111010
+ 00054F [02] 5A00       244     STAA PORTA
+ 000551 [01] 863F       245     LDAA #%00111111
+ 000553 [03] B41006     246     ANDA cminten
+ 000556 [02] 5A00       247     STAA PORTA
+ 000558 [01] 863F       248     LDAA #%00111111
+ 00055A [03] B41007     249     ANDA cminone
+ 00055D [02] 5A00       250     STAA PORTA
+ 00055F [05] 3D         251     RTS
+                          252   
+
+ Symbol Table 
+
+ADDMILLIS        0004A6
+ADDTOHOURTENS    000490
+ADDTOTENSMIN     000466
+AHOURONE         001001
+AHOURTEN         001000
+AMINONE          001002
+AMINTEN          001003
+CHOURONE         001005
+CHOURTEN         001004
+CMINONE          001007
+CMINTEN          001006
+CSECOND          001008
+DDRA             000002
+DDRM             000252
+DELAY1MS         000521
+ENDSECOND        000454
+INCHOUR          000477
+INCMINUTE        000455
+INCSECOND        000446
+INITLCD          0004B7
+MILLIS           001009
+PORTA            000000
+PORTM            000250
+RESETDAY         00049D
+SENDWITHDELAY    000503
+TC1              000052
+TC4              000058
+TCTL1            000048
+TCTL2            000049
+
+
+main.asm               Assembled with CASM12Z  2018-04-02  2:25:43 PM  PAGE 6
+
+
+
+TFLG1            00004E
+TIE              00004C
+TIOS             000040
+TOP              000436
+TSCNT            000044
+TSCR1            000046
+TSCR2            00004D
+UPDATECLOCK      00052D
