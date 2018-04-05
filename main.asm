@@ -23,15 +23,24 @@ DDRA EQU $0002
 PORTM EQU $250
 DDRM EQU $252
 
-	org $FFEC
-	DW ADDMILLIS
+	org $0800
+	JSR ADDMILLIS
+	pula
+	pula
+	pula
+	pula
+	pula
+	pula
+	pula
+	CLI
+	RTS
 	
 	
 	org $1000
 ahourten	 DS 1 ; the tens place for the alarm hour time
 ahourone	 DS 1 ; the ones place for the alarm hour time
-aminone		 DS 1 
 aminten		 DS 1 
+aminone		 DS 1 
 chourten	 DS 1; hour tens place for current time
 chourone	 DS 1
 cminten		 DS 1
@@ -41,12 +50,14 @@ millis		 DS 2
 hrbuttonstate DS 1
 minbuttonstate DS 1
 cancelbuttonstate DS 1
-diplaycora	   DS 1
+displaycora	   DS 1
+timesincebtnpressed DS 2
  
  	
  	org $400
  	LDS #$4000
 	;set up timer
+	;CLI
  	LDAA #%10010000
  	STAA TSCR1
  	LDAA #%00000011
@@ -61,24 +72,25 @@ diplaycora	   DS 1
  	STAA chourone
  	STAA chourten
 	STAA csecond
+	LDAA #!5
 	STAA aminone
+	CLRA
 	STAA aminten
 	STAA ahourone
 	STAA ahourten
 	STAA displaycora
 	STAA cancelbuttonstate
-	
+	LDD #!10000
+	STD timesincebtnpressed
 	LDD #!0
 	STD millis
 	;set up display
 	JSR InitLCD
-	;LDD #%00110000;function set
-	;LDD #%00001100;on/off ctrl
-	;LDD #%00000110; entry mode set
+	
 	;**KEYPAD INIT**
 	LDAA #$80
 	STAA DDRB
-	LDAA #$01pullup resistor for port B
+	LDAA #$01;pullup resistor for port B
 	STAA PUCR
 	CLRA
 	STAA hrbuttonstate
@@ -90,40 +102,50 @@ diplaycora	   DS 1
  	LDD TSCNT
  	ADDD #!1000
  	STD TC1
-	CLI
-
-TOP	
-	BSET PORTB, #$01,DebounceMinButton
-	BSET PORTB, #$02, DebounceHrButton
-	BCLR PORTB, #$03,NoPress
+TOP:	
+	JSR ADDMILLIS
+	BRSET PORTB,$01,DebounceMinButton
+	BRSET PORTB,$02,DebounceHrButton
+	BRCLR PORTB,$03,NoPress
 DebounceCancelButton:
 	LDAA cancelbuttonstate
 	INCA
 	STAA cancelbuttonstate
-	CMPA $!250
+	CMPA #!250
 	BNE DoneDebounce
 	JSR CancelAlarm
+	LDD #!0
+	STD timesincebtnpressed
 	BRA NoPress
 DebounceHrButton:
 	LDAA hrbuttonstate
 	INCA
 	STAA hrbuttonstate
-	CMPA $!250
+	CMPA #!250
 	BNE DoneDebounce
 	JSR IncAlarmHour
+	LDD #!0
+	STD timesincebtnpressed
 	BRA NoPress
 DebounceMinButton:
 	LDAA minbuttonstate
 	INCA
 	STAA minbuttonstate
-	CMPA $!250
+	CMPA #!250
 	BNE DoneDebounce
 	JSR IncAlarmMin
+	LDD #!0
+	STD timesincebtnpressed
 NoPress:
 	CLRA
 	STAA hrbuttonstate
 	STAA minbuttonstate
 	STAA cancelbuttonstate
+	LDD timesincebtnpressed
+	CPD #!10000
+	BEQ DoneDebounce
+	ADDD #!1
+	STD timesincebtnpressed
 DoneDebounce:
 	LDD millis
 	CPD #!1000
@@ -173,10 +195,10 @@ IncHour:
 	INCA
 	STAA chourone
 	CMPA #!10
+	BEQ addtohourtens
 	LDAB chourten
 	CPD #$402; if it is at 24 we need to reset
 	BEQ resetDay
-	BEQ addtohourtens
 	JSR CHECKALARM
 	RTS
 
@@ -197,12 +219,12 @@ resetDay:	   LDAA #0
 			   
 ADDMILLIS:	  
 			   LDD TSCNT
-			   ADDD #!1000
+			   ADDD #!10000
 			   STD TC1
 			   LDD millis
 			   ADDD #!1
 			   STD millis
-			   RTI
+			   RTS
 
 InitLCD:
 		ldaa #$FF ; Set port A to output for now
@@ -304,28 +326,88 @@ NOALARM:
 	RTS
 	
 UPDATECLOCK:
-	LDAA #0
-	STAA PORTM
- 	LDAA #$2
-	STAA PORTA;return cursor home
+	bclr PORTM,%00000100
+ 	LDAA #$01
+	PSHA
 	LDAA #1
-	STAA PORTA;clear screen
-	LDAA #%00011000;enable writing
-	STAA PORTM;
-	LDAA #%00111111
-	ANDA chourten
-	STAA PORTA
-	LDAA #%00111111
-	ANDA chourone
-	STAA PORTA
+	PSHA
+	JSR SendWithDelay
+	PULA
+	PULA
+	bset PORTM,%00000100
+	LDD timesincebtnpressed
+	CPD #!10000
+	BNE showalarm
+	LDAA #%00110000 
+	ORAA chourten
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
+	LDAA #%00110000 
+	ORAA chourone
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
 	LDAA #%00111010
-	STAA PORTA
-	LDAA #%00111111
-	ANDA cminten
-	STAA PORTA
-	LDAA #%00111111
-	ANDA cminone
-	STAA PORTA
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
+	LDAA #%00110000 
+	ORAA cminten
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
+	LDAA #%00110000 
+	ORAA cminone
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
+	RTS	
+showalarm:
+	LDAA #%00110000 
+	ORAA ahourten
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
+	LDAA #%00110000 
+	ORAA ahourone
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
+	LDAA #%00111010
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
+	LDAA #%00110000 
+	ORAA aminten
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
+	LDAA #%00110000 
+	ORAA aminone
+	PSHA
+	LDAA #$FF
+	PSHA
+	jsr SendWithDelay
+	LEAS 2,SP
 	RTS
 
 IncAlarmMin:
@@ -344,27 +426,29 @@ IncAlarmMin:
 	CLRA
 	STAA aminten
 	JSR IncAlarmHour
-DONEAMIN: RTS
+DONEAMIN:
+	RTS
 
 IncAlarmHour:
 	LDAA ahourone
 	INCA
 	STAA ahourone
 	CMPA #!10
-	BNE DONEAHOUR
+	BNE DONEAHOURONE
 	CLRA
 	STAA ahourone
 	LDAA ahourten
 	INCA
 	STAA ahourten
+DONEAHOUR:
 	LDAA ahourten
 	LDAB ahourone
 	CPD #$0204
-	BNE DONEAHOUR
+	BEQ RESETDAY
+	RTS
+RESETDAY:
 	CLRA
-	STAA ahourten
-	STAA ahourone;reset to 0
-DONEAHOUR:
+	CLRB
 	RTS
 	
 CancelAlarm
