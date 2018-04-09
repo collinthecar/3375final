@@ -115,6 +115,7 @@ DebounceCancelButton:
 	BNE DoneDebounce
 	JSR CancelAlarm
 	LDD #!0
+	STD cancelbuttonstate
 	STD timesincebtnpressed
 	BRA NoPress
 DebounceHrButton:
@@ -125,6 +126,7 @@ DebounceHrButton:
 	BNE DoneDebounce
 	JSR IncAlarmHour
 	LDD #!0
+	STD hrbuttonstate
 	STD timesincebtnpressed
 	BRA NoPress
 DebounceMinButton:
@@ -135,6 +137,7 @@ DebounceMinButton:
 	BNE DoneDebounce
 	JSR IncAlarmMin
 	LDD #!0
+	STD minbuttonstate
 	STD timesincebtnpressed
 NoPress:
 	CLRA
@@ -449,6 +452,8 @@ DONEAHOUR:
 RESETDAY:
 	CLRA
 	CLRB
+	STAA ahourten
+	STAA ahourone
 	RTS
 	
 CancelAlarm
