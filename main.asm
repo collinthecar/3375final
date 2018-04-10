@@ -47,9 +47,9 @@ cminten		 DS 1
 cminone		 DS 1
 csecond		 DS 1
 millis		 DS 2
-hrbuttonstate DS 1
-minbuttonstate DS 1
-cancelbuttonstate DS 1
+hrbuttonstate DS 2
+minbuttonstate DS 2 
+cancelbuttonstate DS 2
 displaycora	   DS 1
 timesincebtnpressed DS 2
  
@@ -72,7 +72,7 @@ timesincebtnpressed DS 2
  	STAA chourone
  	STAA chourten
 	STAA csecond
-	LDAA #!5
+	LDAA #!1
 	STAA aminone
 	CLRA
 	STAA aminten
@@ -106,12 +106,12 @@ TOP:
 	JSR ADDMILLIS
 	BRSET PORTB,$01,DebounceMinButton
 	BRSET PORTB,$02,DebounceHrButton
-	BRCLR PORTB,$03,NoPress
+	BRCLR PORTB,$04,NoPress
 DebounceCancelButton:
-	LDAA cancelbuttonstate
-	INCA
-	STAA cancelbuttonstate
-	CMPA #!250
+	LDD cancelbuttonstate
+	ADDD #!1
+	STD cancelbuttonstate
+	CPD #!25000
 	BNE DoneDebounce
 	JSR CancelAlarm
 	LDD #!0
@@ -119,31 +119,26 @@ DebounceCancelButton:
 	STD timesincebtnpressed
 	BRA NoPress
 DebounceHrButton:
-	LDAA hrbuttonstate
-	INCA
-	STAA hrbuttonstate
-	CMPA #!250
+	LDD hrbuttonstate
+	ADDD #!1
+	STD hrbuttonstate
+	CPD #!25000
 	BNE DoneDebounce
 	JSR IncAlarmHour
-	LDD #!0
-	STD hrbuttonstate
-	STD timesincebtnpressed
 	BRA NoPress
 DebounceMinButton:
-	LDAA minbuttonstate
-	INCA
-	STAA minbuttonstate
-	CMPA #!250
+	LDD minbuttonstate
+	ADDD #!1
+	STD minbuttonstate
+	CPD #!25000
 	BNE DoneDebounce
 	JSR IncAlarmMin
-	LDD #!0
-	STD minbuttonstate
-	STD timesincebtnpressed
 NoPress:
 	CLRA
-	STAA hrbuttonstate
-	STAA minbuttonstate
-	STAA cancelbuttonstate
+	CLRB
+	STD hrbuttonstate
+	STD minbuttonstate
+	STD cancelbuttonstate
 	LDD timesincebtnpressed
 	CPD #!10000
 	BEQ DoneDebounce
@@ -222,7 +217,7 @@ resetDay:	   LDAA #0
 			   
 ADDMILLIS:	  
 			   LDD TSCNT
-			   ADDD #!10000
+			   ADDD #!1000
 			   STD TC1
 			   LDD millis
 			   ADDD #!1
@@ -323,8 +318,7 @@ CHECKALARM:
 	LDD chourten
 	CPD ahourten
 	BNE NOALARM
-	LDAA #$80
-	STAA PORTB;turn on motor
+	BSET PORTB,%10000000
 NOALARM:
 	RTS
 	
@@ -414,6 +408,9 @@ showalarm:
 	RTS
 
 IncAlarmMin:
+	LDD #!0
+	STD minbuttonstate
+	STD timesincebtnpressed
 	LDAA aminone
 	INCA
 	STAA aminone
@@ -433,6 +430,9 @@ DONEAMIN:
 	RTS
 
 IncAlarmHour:
+			 LDD #!0
+	STD hrbuttonstate
+	STD timesincebtnpressed
 	LDAA ahourone
 	INCA
 	STAA ahourone
@@ -443,20 +443,20 @@ IncAlarmHour:
 	LDAA ahourten
 	INCA
 	STAA ahourten
-DONEAHOUR:
+DONEAHOURONE:
 	LDAA ahourten
 	LDAB ahourone
 	CPD #$0204
-	BEQ RESETDAY
+	BEQ RESETADAY
 	RTS
-RESETDAY:
+RESETADAY:
 	CLRA
 	CLRB
 	STAA ahourten
 	STAA ahourone
 	RTS
 	
-CancelAlarm
-		   LDAA $00
-		   STAA PORTB
+CancelAlarm:
+		   BCLR PORTB,%10000000
 		   RTS 
+
